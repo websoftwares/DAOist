@@ -1,68 +1,112 @@
 <template>
-   <div class="navbar-end">
-          <div class="navbar-item">
-    <router-link class="button  vinzy-buy-more" v-if="!isLoggedIn" to="/register-winery">Register winery</router-link>
-          </div>
-                    <div class="navbar-item">
-    <router-link class="button  vinzy-buy-more" to="/login" v-if="!isLoggedIn">Login</router-link>
-                    </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <router-link
+        v-if="!isLoggedIn"
+        class="button  vinzy-buy-more"
+        to="/register-winery">Register</router-link>
+    </div>
+    <div class="navbar-item">
+      <router-link
+        v-if="!isLoggedIn"
+        class="button  vinzy-buy-more"
+        to="/login">Login</router-link>
+    </div>
 
+    <a
+      v-if="isLoggedIn"
+      class="navbar-item"
+      href="#"
+      @click="openModal">
+      {{ tokenBalance }} VINCOINS
+      ( {{ dollarEquiv }} USD )
+    </a>
 
-                      <a v-if="isLoggedIn" class="navbar-item" href="">
-                 {{ tokenBalance }} VINCOINS
-          </a>
+    <div
+      v-if="isLoggedIn"
+      class="navbar-item">
+      <a class="button  vinzy-buy-more">Buy more</a>
+    </div>
 
-          <div v-if="isLoggedIn" class="navbar-item">
-          <a class="button  vinzy-buy-more">Buy more</a>
-          </div>
-
-
-<div v-if="isLoggedIn" class="navbar-item">
-          <a class="button  vinzy-buy-more" href="#" v-if="isLoggedIn" @click="logout">Logout</a>
-                  </div>
-   </div>
-
-
-
-
-
-
+    <div
+      v-if="isLoggedIn"
+      class="navbar-item">
+      <a
+        v-if="isLoggedIn"
+        class="button  vinzy-buy-more"
+        href="#"
+        @click="logout">Logout</a>
+    </div>
+  </div>
 </template>
 
 <script>
 import Vuex from 'vuex'
 import axios from 'axios'
 
+const DEC_PRECISION = 4
+const VINZY_API_BASE_URI = 'https://vinzy.softwareapi.run'
 
 export default {
-
-  name: "HeaderProfileBar",
-  methods: {
-    ...Vuex.mapActions(["logout"]),
-  },
-  computed: {
-    ...Vuex.mapGetters(["isLoggedIn"])
-  },
-   data() {
+  name: 'HeaderProfileBar',
+  props: { needsRefresh: { type: String, default: '' } },
+  data() {
     return {
-      tokenBalance:null
-      }
-  },
-
-  // Fetches posts when the component is created.
-  created() {
-      if(this.isLoggedIn) {
-      axios.get(`https://m1ufhri369.execute-api.us-east-1.amazonaws.com/latest?token=${localStorage.getItem('token')}`, {
-      })
-      .then(response => {
-        this.tokenBalance = response.data.tokenBalance
-      })
-      .catch(e => {
-        console.log(e)
-      })
+      tokenBalance: 0,
+      conversionRate: 0,
+      pricePoint: 0,
+      wasRefreshed: false,
     }
   },
-};
+  computed: {
+    ...Vuex.mapGetters(['isLoggedIn']),
+
+    // Calculates dollar equivalent: VIN > OST > USD
+    dollarEquiv() {
+      return ((this.tokenBalance / this.conversionRate) * this.pricePoint).toFixed(DEC_PRECISION)
+    },
+  },
+  watch: {
+    needsRefresh() {
+      if (this.needsRefresh) {
+        this.getProfileInfo()
+      }
+    },
+  },
+  // Fetches posts when the component is created.
+  created() {
+    if (this.isLoggedIn) {
+      this.getProfileInfo()
+    }
+  },
+  methods: {
+    ...Vuex.mapActions(['logout']),
+
+    // Fetches user balance and transactions info
+    getProfileInfo() {
+      axios
+        .get(`${VINZY_API_BASE_URI}/profile`, {
+          params: {
+            token: localStorage.getItem('token'),
+            select: 'balance,token',
+          },
+        })
+        .then(res => {
+          this.tokenBalance = res.data.balance.token_balance
+          this.conversionRate = res.data.token.conversion_factor
+          this.pricePoint = res.data.price_points.OST.USD
+          return
+        })
+        .catch(e => console.log(e))
+    },
+
+    // Open Profile Modal
+    openModal(event) {
+      event.preventDefault()
+      this.$emit('toggleModal', {})
+    },
+  },
+}
 </script>
 
 
